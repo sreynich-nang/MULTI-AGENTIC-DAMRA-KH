@@ -1,1 +1,6 @@
-/.env
+.git
+temp/
+log/
+__pycache__/
+.vscode
+.env
