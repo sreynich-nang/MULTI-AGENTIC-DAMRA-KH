@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     OCR_UPLOAD_DIR: str = "temp/upload"
     OCR_MARKDOWN_DIR: str = "temp/ocr_markdown"
     APP_LOG_FILE: str = "log/app.log"
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+    PROMPTS_DIR: str = "app/utils/prompts"
 
     class Config:
         env_file = ".env"

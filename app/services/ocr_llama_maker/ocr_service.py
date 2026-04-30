@@ -2,11 +2,13 @@ import logging
 import os
 import base64
 try:
-    import google.generativeai as genai
+    import google.genai as genai
+    from google.genai import types
 except ImportError:
     genai = None
 from app.core.config import settings
 from app.core.exception import OCRQuotaExceededError
+from app.utils.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -22,25 +24,18 @@ _MIME_MAP = {
     ".webp": "image/webp",
 }
 
-OCR_PROMPT = (
-    "You are an expert OCR and document processing assistant. "
-    "Extract all text from the provided document or image and format it as "
-    "clean, well-structured Markdown. Preserve the original structure: "
-    "headings, paragraphs, tables, bullet lists, and numbered lists. "
-    "Return only the Markdown content — no extra commentary or wrapping code fences."
-)
+
 
 
 class OCRService:
     def __init__(self):
-        self.model = None
+        self.client = None
         if genai is None:
-            logger.error("google-generativeai is not installed. OCR endpoint will fail until dependency is installed.")
+            logger.error("google-genai is not installed. OCR endpoint will fail until dependency is installed.")
             return
 
-        genai.configure(api_key=settings.GOOGLE_API_KEY)
-        self.model = genai.GenerativeModel("gemini-2.0-flash")
-        logger.info("OCRService initialised with Gemini multimodal (no local models).")
+        self.client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+        logger.info("OCRService initialised with Gemini %s (no local models).", settings.GEMINI_MODEL)
 
     # ------------------------------------------------------------------
     # Public API
@@ -57,9 +52,9 @@ class OCRService:
             "OCRService started: file_name=%s file_path=%s", file_name, file_path
         )
 
-        if self.model is None:
+        if self.client is None:
             raise RuntimeError(
-                "Missing dependency: google-generativeai. Install it to use OCR processing."
+                "Missing dependency: google-genai. Install it to use OCR processing."
             )
 
         _, extension = os.path.splitext(file_name.lower())
@@ -69,20 +64,20 @@ class OCRService:
         with open(file_path, "rb") as f:
             file_bytes = f.read()
 
-        inline_data = {
-            "inline_data": {
-                "data": base64.b64encode(file_bytes).decode("utf-8"),
-                "mime_type": mime_type,
-            }
-        }
-
         logger.info(
             "Sending file to Gemini: file_name=%s mime_type=%s size_bytes=%d",
             file_name, mime_type, len(file_bytes),
         )
 
         try:
-            response = self.model.generate_content([OCR_PROMPT, inline_data])
+            prompt = load_prompt("ocr_prompts.md")
+            response = self.client.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=[
+                    prompt,
+                    types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
+                ]
+            )
         except Exception as exc:
             message = str(exc)
             lowered = message.lower()

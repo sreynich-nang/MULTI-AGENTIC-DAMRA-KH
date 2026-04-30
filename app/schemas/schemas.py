@@ -6,3 +6,4 @@ class OCRUploadResponse(BaseModel):
 	message: str
 	output_file: str
 	content: str
+	process_time: float

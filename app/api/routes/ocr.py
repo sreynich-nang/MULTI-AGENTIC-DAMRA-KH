@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+import time
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.ocr_llama_maker.ocr_service import ocr_service
 from app.core.config import settings
@@ -39,17 +40,21 @@ async def upload_file(file: UploadFile = File(...)):
         
         # 2. Process the file with OCR and Gemini
         logger.info("Starting OCR processing: filename=%s", safe_file_name)
+        start_time = time.perf_counter()
         output_path, content = await ocr_service.process_file(
             file_path=temp_file_path, 
             file_name=safe_file_name
         )
-        logger.info("OCR processing completed: filename=%s output=%s", safe_file_name, output_path)
+        end_time = time.perf_counter()
+        elapsed_time = round(end_time - start_time, 2)
+        logger.info("OCR processing completed: filename=%s output=%s time=%.2fs", safe_file_name, output_path, elapsed_time)
 
         return {
             "status": "success",
             "message": f"Successfully processed {safe_file_name}",
             "output_file": os.path.basename(output_path),
-            "content": content
+            "content": content,
+            "process_time": elapsed_time
         }
     except OCRQuotaExceededError as e:
         logger.warning(
